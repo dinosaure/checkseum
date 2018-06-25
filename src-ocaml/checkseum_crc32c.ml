@@ -6,7 +6,8 @@ type t = Optint.t
 let (&&&) = Optint.logand
 let (^^^) = Optint.logxor
 let (>>>) = Optint.shift_right_logical
-let (~~~) = Optint.lognot
+let ffffffff = Optint.(succ (mul (of_int32 Int32.max_int) (of_int 2)))
+let (~~~) x = Optint.((logand (lognot x) ffffffff))
 
 let crc_table = Array.map Optint.of_int32 [|
     0x00000000l; 0xf26b8303l; 0xe13b70f7l; 0x1350f3f4l;
@@ -83,8 +84,8 @@ let buf_fold_left get f acc buf offset length =
   !acc_r
 
 let update_crc acc c =
-  let index = Optint.to_int ((acc ^^^ (Optint.of_int (int_of_char c))) &&& Optint.of_int 0xff) in
-  (crc_table.(index) ^^^ (acc >>> 8)) &&& Optint.of_int32 0xffffffffl
+  let index = (Optint.to_int acc lxor int_of_char c) land 0xff in
+  (crc_table.(index) ^^^ (acc >>> 8)) &&& ffffffff
 
 let crc32c : type a. get:(a -> int -> char) -> a -> int -> int -> t -> t
   = fun ~get buf off len crc ->
@@ -100,8 +101,8 @@ let crc32c_bigstring =
   let get : bigstring -> int -> char = Bigarray.Array1.get in
   crc32c ~get
 
-let%test _ = crc32c_bigstring (Cstruct.to_bigarray @@ Cstruct.of_string "123456789") 0 9 @@ (Optint.of_int32 0l) = (Optint.of_int32 0xe3069283l)
-let%test _ = crc32c_bigstring (Cstruct.to_bigarray @@ Cstruct.of_string "Thou hast made me, and shall thy work decay?") 0 9 @@ Optint.of_int32 0l = Optint.of_int32 0x866374c0l
+let%test _ = crc32c_bigstring (Cstruct.to_bigarray @@ Cstruct.of_string "123456789") 0 9 @@ Optint.zero = (Optint.of_int 0xe3069283)
+let%test _ = crc32c_bigstring (Cstruct.to_bigarray @@ Cstruct.of_string "Thou hast made me, and shall thy work decay?") 0 9 @@ Optint.zero = Optint.of_int 0x866374c0
 
 (*$T crc32c_string
    crc32c_string "123456789" 0 9 = 0xe3069283l
@@ -111,9 +112,9 @@ let crc32c_string =
   let get = String.get in
   crc32c ~get
 
-let%test _ = crc32c_string "" 0 0 @@ (Optint.of_int32 0l) = (Optint.of_int32 0l)
-let%test _ = crc32c_string "\x00" 0 1 @@ (Optint.of_int32 0l) = (Optint.of_int32 0x527d5351l)
-let%test _ = crc32c_string "\xff\xff\xff\xff" 0 4 @@ (Optint.of_int32 0l) = (Optint.of_int32 0xffffffffl)
-let%test _ = crc32c_string "123456789" 0 9 @@ (Optint.of_int32 0l) = (Optint.of_int32 0xe3069283l)
-let%test _ = crc32c_string "Thou hast made me, and shall thy work decay?" 0 9 @@ Optint.of_int32 0l = Optint.of_int32 0x866374c0l
+let%test _ = crc32c_string "" 0 0 @@ Optint.zero = Optint.zero
+let%test _ = crc32c_string "\x00" 0 1 @@ Optint.zero = (Optint.of_int 0x527d5351)
+let%test _ = crc32c_string "\xff\xff\xff\xff" 0 4 @@ Optint.zero = ffffffff
+let%test _ = crc32c_string "123456789" 0 9 @@ Optint.zero = (Optint.of_int 0xe3069283)
+let%test _ = crc32c_string "Thou hast made me, and shall thy work decay?" 0 9 @@ Optint.zero = Optint.of_int 0x866374c0
 
